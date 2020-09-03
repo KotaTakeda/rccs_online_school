@@ -1,2 +1,9 @@
-# rccs_online_school
+# 理研データ同化オンラインスクール (基礎編) 2020 課題
+理研データ同化オンラインスクール (基礎編)は理研のデータ同化研究チームが主催となるオンラインスクールです．データ同化についての実践的な知識が身につきます．
+
+# 目標
+Lorenz96モデルに対するデータ同化システムの構築．
+
+[詳細](http://www.data-assimilation.riken.jp/jp/events/riken_da_tr_2020/index.html)
+
  
