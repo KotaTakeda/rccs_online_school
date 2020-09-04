@@ -34,7 +34,7 @@ class LinearKalmanFilter:
         self.x = []
         
   # 逐次推定を行う
-    def forwardEstimation(self, verbose=False):
+    def forward_estimation(self, verbose=False):
         count = 0
         for y_obs in self.y:
             self._forecast()
@@ -56,7 +56,7 @@ class LinearKalmanFilter:
         # 誤差共分散更新
         self.P -= K@H@P
 
-        # アンサンブルで x(k) 更新
+        # x 更新
         self.x_a = self.x_f + K@(y_obs - H@self.x_f)
 
         # 更新した値を保存
@@ -91,7 +91,7 @@ class ExtendedKalmanFilter:
         self.delta = delta
         
   # 逐次推定を行う
-    def forwardEstimation(self, verbose=False):
+    def forward_estimation(self, verbose=False):
         count = 0
         for y_obs in self.y:
             self._forecast()
@@ -113,7 +113,7 @@ class ExtendedKalmanFilter:
         # 誤差共分散更新
         self.P -= K@H@P
 
-        # アンサンブルで x(k) 更新
+        # x 更新
         self.x_a = self.x_f + K@(y_obs - H@self.x_f)
 
         # 更新した値を保存
@@ -127,7 +127,7 @@ class ExtendedKalmanFilter:
         # 予報
         self.x_f = self.M(x_a, dt)
         
-        # 線形化
+        # 線形化， サイクルを変化させるとうまくいかなくなる
         JM = np.zeros((N,N))
         for j in range(N):
             dx = self.delta*np.identity(N)[:, j]
