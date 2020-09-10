@@ -4,6 +4,6 @@
 # 目標
 Lorenz96モデルに対するデータ同化システムの構築．
 
-[詳細](http://www.data-assimilation.riken.jp/jp/events/riken_da_tr_2020/index.html)
+[募集詳細](http://www.data-assimilation.riken.jp/jp/events/riken_da_tr_2020/index.html)
 
  
