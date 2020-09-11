@@ -3,12 +3,11 @@ import numpy as np
 import pdb
             
 class ExtendedKalmanFilter:
-    def __init__(self, M, H, Q, R, y, x_0, P_0, dim_x=2, dt=0.05, delta=1e-3, var3d=False, inflation_factor=0):
+    def __init__(self, M, H, Q, R, y, x_0, P_0, dim_x=2, dt=0.05, delta=1e-3, var3d=False, alpha=1, cut_obs_size=0):
         self.M = M
         self.H = H
         self.Q = Q
         self.R = R
-        self.A = inflation_factor*np.identity(dim_x)
         self.y = y
         self.dt = dt
         self.dim_x = dim_x # todo : x_0から計算
@@ -18,24 +17,28 @@ class ExtendedKalmanFilter:
         self.x = []
         self.delta = delta
         self.var3d = var3d
+        #self.A = alpha*np.identity(dim_x) #　加法的誤差共分散膨張
+        self.alpha = alpha # 1以上
+        self.cut_obs_size = cut_obs_size
         
   # 逐次推定を行う
-    def forward_estimation(self, verbose=False):
+    def forward_estimation(self):
         count = 0
         for y_obs in self.y:
             self._forecast()
             self._update(y_obs)
-            
-            if verbose:
-                if count%10 == 0:
-                    print('step: {}, x: {}, P11: {}'.format(count, self.x_a, self.P[0,0]))
-                count += 1
 
     # 更新/解析
     def _update(self, y_obs):
-        self.P = self.P + self.A # 誤差共分散膨張, P = self.P + self.Aとするとうまくいかない．
+        # self.P = self.P + self.A # 加法的誤差共分散膨張, P = self.P + self.Aとするとうまくいかない． 乗法的方法に変更
+        self.P = self.alpha*self.P # 乗法的
         P = self.P
-        H = self.H
+
+        H = self.H.copy()
+        # 観測値をcut_obs_sizeだけランダムに間引く
+        choice = np.random.choice(range(self.dim_x), self.cut_obs_size, replace=False)
+        for n in choice:
+            H[n, n] = 0
                 
         # Kalman gain 
         K = P@H.T@np.linalg.inv(H@P@H.T + self.R)
@@ -196,7 +199,7 @@ N: アンサンブルメンバーの数
 x: ndarray(dim_x)
 
 """
-class EnSquareRootFilter:
+class EnsembleSquareRootFilter:
     def __init__(self, M, H, Q, R, y, x_0, P_0, dim_x=2, dim_y=1, N=10, dt=0.05):
         self.M = M
         self.H = H
