@@ -56,18 +56,17 @@ class ExtendedKalmanFilter:
 
     # 予報/時間発展
     def _forecast(self, log=False):
-        x_a = self.x_a; dt = self.dt; M = self.M
-        N = self.dim_x
+        x_a = self.x_a; dt = self.dt; M = self.M; N = self.dim_x
         
         # 予報
-        self.x_f = self.M(x_a, dt)
+        self.x_f = self.M(x_a, dt) #保存しておく
         
         if not self.var3d:
-            # 線形化， サイクルを変化させるとうまくいかなくなる
+            # 線形化， dtを大きくするとうまくいかなくなる
             JM = np.zeros((N, N))
             for j in range(N):
                 dx = self.delta*np.identity(N)[:, j]
-                JM[:, j] = (M(x_a + dx, dt) - M(x_a, dt))/self.delta
+                JM[:, j] = (M(x_a + dx, dt) - self.x_f)/self.delta # ここでJM[:, j] = (M(x_a + dx, dt) - self.M(x_a, dt))/self.deltaとするとすごく遅くなる
 
             self.P = JM@self.P@JM.T + self.Q
 
@@ -104,31 +103,35 @@ x: ndarray(dim_x)
 
 """
 class EnsembleKalmanFilter:
-    def __init__(self, M, H, Q, R, y, x_0, P_0, dim_x=2, dim_y=1, N=10, dt=0.05):
+    def __init__(self, M, H, Q, R, y, x_0, P_0, dim_x=2, dim_y=1, N=10, dt=0.05, alpha=1, localization=True):
         self.M = M
         self.H = H
         self.Q = Q
         self.R = R
         self.y = y
-        self.N = N
+        self.N = N # アンサンブルメンバー数
         self.dt = dt
-        self.dim_x = dim_x # todo : x_0から計算
-        self.dim_y = dim_y # todo : yから計算
+        
+        # 実装で技術的に必要
+        self.dim_x = dim_x
+        self.dim_y = dim_y
         self.mean = np.zeros(self.dim_x)
         self.mean_y = np.zeros(self.dim_y)
-        self.x_mean = np.zeros(self.dim_x)
-        self.x = []
+        
+        self.alpha = alpha # inflation用の定数
+        self.localization = localization
+        if localization:
+            self.loc_mat = self.make_loc_mat() # localization用の行列
+
+        # filtering実行用
+        self.x = [] # 記録用
 
         self._initialize(x_0, P_0, N)
 
   #　初期状態
     def _initialize(self, x_0, P_0, N):
-        self.ensemble = np.zeros((self.N, self.dim_x))
-        e = np.random.multivariate_normal(self.mean, P_0, N)
-        for i in range(N):
-            self.ensemble[i] = x_0 + e[i]
-    
-        self.x = np.mean(self.ensemble, axis=0)
+        self.ensemble = x_0 + np.random.multivariate_normal(self.mean, P_0, N)
+        self.x_mean = self.ensemble.mean(axis=0)
     
   # 逐次推定を行う
     def forward_estimation(self):
@@ -138,42 +141,52 @@ class EnsembleKalmanFilter:
 
     # 更新/解析
     def _update(self, y_obs):
-        x_f = self.x_mean
-        X_f = self.ensemble
-        H = self.H
-        N = self.N
-
-        #dx
-        dX = X_f - x_f
+        x_f = self.x_mean; X_f = self.ensemble; H = self.H; N = self.N
 
         # P_f: 予報誤差共分散を計算
+        dX = X_f - x_f
         P_f = (dX.T@dX) / (N-1)
+        
+        # localizationとinflation
+        if self.localization:
+            P_f = self.loc_mat*P_f
+        P_f = self.alpha*P_f
         
         # Kalman gain 
         K = P_f@H.T@np.linalg.inv(H@P_f@H.T + self.R)
 
         # アンサンブルで x(k) 更新, ノイズを加える．
-        e = np.random.multivariate_normal(self.mean_y, self.R, size=N)
-        self.ensemble = X_f + K@(y_obs + e - H@X_f)
+        e = np.random.multivariate_normal(self.mean_y, self.R, N)
+        for i in range(N):
+            self.ensemble[i] = X_f[i] + K@(y_obs + e[i] - H@X_f[i])
 
         # 更新した値のアンサンブル平均　x を保存
-        self.x.append(self.x_mean)
+        self.x.append(self.ensemble.mean(axis=0))
 
     # 予報/時間発展
     def _forecast(self, log=False):
-    # アンサンブルで x(k) 予測
+        # アンサンブルで x(k) 予測
         for i, s in enumerate(self.ensemble):
             self.ensemble[i] = self.M(s, self.dt)
 
         self.x_mean = self.ensemble.mean(axis=0)
+            
+#         if log:
+#             self.x.append(self.x_mean)
 
-        if log:
-            self.x.append(self.x_mean)
+    def make_loc_mat(self):
+        J = self.dim_x
+        mat = np.zeros((J,J))
+        for i in range(J):
+            for j in range (J):
+                mat[i, j] = np.exp(-0.5*(i-j)**2)
+        return mat
+                
     
     # 追加の推定(観測値なし)
-    def additional_forecast(self, step):
-        for _ in range(step):
-            self._forecast(log=True)
+#     def additional_forecast(self, step):
+#         for _ in range(step):
+#             self._forecast(log=True)
 
 # ========================
 # 未完成
