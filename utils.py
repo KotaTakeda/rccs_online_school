@@ -25,3 +25,12 @@ def lorenz96(t, x, F, J):
         dx[j] = (x[(j+1)%40] - x[(j-2)%40])*x[(j-1)%40] - x[j]
     dx += F
     return dx
+
+# 各時刻でrmseを計算
+def error_series_kf(true, estimate, time_index, J=40):
+    return np.array([np.linalg.norm(estimate[t] - true[t])/np.sqrt(J) for t in time_index])
+
+def search_optimal_param(params, errors):
+    errors = np.array(errors)
+    idx = errors.argmin()
+    return params[idx], idx
