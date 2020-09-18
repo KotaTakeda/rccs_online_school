@@ -1,23 +1,27 @@
 import numpy as np
-# from numpy import multivariate_normal
+from numpy import sqrt, trace, zeros, identity, exp
+from numpy.random import multivariate_normal, choice
+from numpy.linalg import inv
+import scipy
+from scipy.linalg import sqrtm
 import pdb
             
 class ExtendedKalmanFilter:
-    def __init__(self, M, H, Q, R, y, x_0, P_0, dim_x=2, dt=0.05, delta=1e-3, var3d=False, alpha=1, cut_obs_size=0):
+    def __init__(self, M, H, Q, R, y, x_0, P_0, dt=0.05, delta=1e-3, var3d=False, alpha=1, cut_obs_size=0):
         self.M = M
         self.H = H
         self.Q = Q
         self.R = R
         self.y = y
         self.dt = dt
-        self.dim_x = dim_x # todo : x_0から計算
+        self.dim_x = Q.shape[0]
         self.P = P_0
-        self.P_hist = []
+        self.trP = []
         self.x_a = x_0
         self.x = []
         self.delta = delta
         self.var3d = var3d
-        #self.A = alpha*np.identity(dim_x) #　加法的誤差共分散膨張
+        #self.A = alpha*identity(dim_x) #　加法的誤差共分散膨張
         self.alpha = alpha # 1以上
         self.cut_obs_size = cut_obs_size
         
@@ -36,12 +40,12 @@ class ExtendedKalmanFilter:
 
         H = self.H.copy()
         # 観測値をcut_obs_sizeだけランダムに間引く
-        choice = np.random.choice(range(self.dim_x), self.cut_obs_size, replace=False)
-        for n in choice:
+        obs_choice = choice(range(self.dim_x), self.cut_obs_size, replace=False)
+        for n in obs_choice:
             H[n, n] = 0
                 
         # Kalman gain 
-        K = P@H.T@np.linalg.inv(H@P@H.T + self.R)
+        K = P@H.T@inv(H@P@H.T + self.R)
         
         # 誤差共分散更新
         if not self.var3d:
@@ -52,7 +56,7 @@ class ExtendedKalmanFilter:
 
         # 更新した値を保存
         self.x.append(self.x_a)
-        self.P_hist.append(self.P)
+        self.trP.append(sqrt(trace(self.P)/40)) # traceを正規化して保存
 
     # 予報/時間発展
     def _forecast(self, log=False):
@@ -63,9 +67,9 @@ class ExtendedKalmanFilter:
         
         if not self.var3d:
             # 線形化， dtを大きくするとうまくいかなくなる
-            JM = np.zeros((N, N))
+            JM = zeros((N, N))
             for j in range(N):
-                dx = self.delta*np.identity(N)[:, j]
+                dx = self.delta*identity(N)[:, j]
                 JM[:, j] = (M(x_a + dx, dt) - self.x_f)/self.delta # ここでJM[:, j] = (M(x_a + dx, dt) - self.M(x_a, dt))/self.deltaとするとすごく遅くなる
 
             self.P = JM@self.P@JM.T + self.Q
@@ -78,8 +82,8 @@ class ExtendedKalmanFilter:
         for _ in range(step):
             self._forecast(log=True)
 
+# TODO: kalman_filters.pyに決定版を保存
 # ========================
-# 未完成
 # ========================
 # Ensemble Kalman Filter PO法
 """
@@ -103,7 +107,7 @@ x: ndarray(dim_x)
 
 """
 class EnsembleKalmanFilter:
-    def __init__(self, M, H, Q, R, y, x_0, P_0, dim_x=2, dim_y=1, N=10, dt=0.05, alpha=1, localization=True):
+    def __init__(self, M, H, Q, R, y, x_0, P_0, N=10, dt=0.05, alpha=1, localization=True):
         self.M = M
         self.H = H
         self.Q = Q
@@ -113,10 +117,9 @@ class EnsembleKalmanFilter:
         self.dt = dt
         
         # 実装で技術的に必要
-        self.dim_x = dim_x
-        self.dim_y = dim_y
-        self.mean = np.zeros(self.dim_x)
-        self.mean_y = np.zeros(self.dim_y)
+        self.dim_x = Q.shape[0]
+        self.dim_y = R.shape[0]
+        self.mean_y = zeros(self.dim_y)
         
         self.alpha = alpha # inflation用の定数
         self.localization = localization
@@ -125,15 +128,16 @@ class EnsembleKalmanFilter:
 
         # filtering実行用
         self.x = [] # 記録用
+        self.trP = []
 
         self._initialize(x_0, P_0, N)
 
-  #　初期状態
+    #　初期状態
     def _initialize(self, x_0, P_0, N):
-        self.ensemble = x_0 + np.random.multivariate_normal(self.mean, P_0, N)
-        self.x_mean = self.ensemble.mean(axis=0)
+        self.X = x_0 + multivariate_normal(zeros(self.dim_x), P_0, N)
+        self.x_mean = self.X.mean(axis=0)
     
-  # 逐次推定を行う
+    # 逐次推定を行う
     def forward_estimation(self):
         for y_obs in self.y:
             self._forecast()
@@ -141,7 +145,7 @@ class EnsembleKalmanFilter:
 
     # 更新/解析
     def _update(self, y_obs):
-        x_f = self.x_mean; X_f = self.ensemble; H = self.H; N = self.N
+        X_f = self.X; x_f = self.x_mean; H = self.H; N = self.N; R = self.R
 
         # P_f: 予報誤差共分散を計算
         dX = X_f - x_f
@@ -151,134 +155,117 @@ class EnsembleKalmanFilter:
         if self.localization:
             P_f = self.loc_mat*P_f
         P_f = self.alpha*P_f
+        self.trP.append(sqrt(trace(P_f)/40))
         
         # Kalman gain 
-        K = P_f@H.T@np.linalg.inv(H@P_f@H.T + self.R)
+        K = P_f@H.T@inv(H@P_f@H.T + R)
 
         # アンサンブルで x(k) 更新, ノイズを加える．
-        e = np.random.multivariate_normal(self.mean_y, self.R, N)
+        e = multivariate_normal(self.mean_y, R, N)
         for i in range(N):
-            self.ensemble[i] = X_f[i] + K@(y_obs + e[i] - H@X_f[i])
+            self.X[i] = X_f[i] + K@(y_obs + e[i] - H@X_f[i])
 
         # 更新した値のアンサンブル平均　x を保存
-        self.x.append(self.ensemble.mean(axis=0))
+        self.x.append(self.X.mean(axis=0))
 
     # 予報/時間発展
-    def _forecast(self, log=False):
+    def _forecast(self):
         # アンサンブルで x(k) 予測
-        for i, s in enumerate(self.ensemble):
-            self.ensemble[i] = self.M(s, self.dt)
+        for i, s in enumerate(self.X):
+            self.X[i] = self.M(s, self.dt)
 
-        self.x_mean = self.ensemble.mean(axis=0)
-            
-#         if log:
-#             self.x.append(self.x_mean)
+        self.x_mean = self.X.mean(axis=0)
 
     def make_loc_mat(self):
         J = self.dim_x
-        mat = np.zeros((J,J))
+        mat = zeros((J,J))
         for i in range(J):
             for j in range (J):
-                mat[i, j] = np.exp(-0.5*(i-j)**2)
+                mat[i, j] = exp(-0.5*(i-j)**2)
         return mat
-                
-    
-    # 追加の推定(観測値なし)
-#     def additional_forecast(self, step):
-#         for _ in range(step):
-#             self._forecast(log=True)
+
 
 # ========================
-# 未完成
+# EnsembleSquareRootFilter
 # ========================
-# Ensemble Kalman Filter SRF法
 """
 Parameters
-
 M: callable(x, dt)
   状態遷移関数
-
-H: callable(x)
-  観測関数
-  
+H: ndarray(dim_y, dim_x)
+  観測行列  
 Q: ndarray(dim_x, dim_x)
-  モデルの誤差共分散行列
-  
+  モデルの誤差共分散行列 
 R: ndarray(dim_y, dim_y)
   観測の誤差共分散行列
-
+x_0: 状態変数の初期値
+P_0: 誤差共分散の初期値
 N: アンサンブルメンバーの数
-
-x: ndarray(dim_x)
-
+dt: 同化時間step幅
+alpha: inflation factor
+localization: localizationの設定
 """
 class EnsembleSquareRootFilter:
-    def __init__(self, M, H, Q, R, y, x_0, P_0, dim_x=2, dim_y=1, N=10, dt=0.05):
+    def __init__(self, M, H, Q, R, y, x_0, P_0, N=40, dt=0.05, alpha=1):
         self.M = M
         self.H = H
         self.Q = Q
         self.R = R
         self.y = y
-        self.N = N
+        self.N = N # アンサンブルメンバー数
         self.dt = dt
-        self.dim_x = dim_x # todo : x_0から計算
-        self.dim_y = dim_y # todo : yから計算
-        self.mean = np.zeros(self.dim_x)
-        self.x = np.zeros(self.dim_x)
-        self.x_log = []
+        
+        # 実装で技術的に必要
+        self.dim_x = Q.shape[0]
+        self.I = identity(N)
+        
+        self.alpha = alpha # inflation用の定数
+
+        # filtering実行用
+        self.x = [] # 記録用
+        self.trP = []
 
         self._initialize(x_0, P_0, N)
 
   #　初期状態
     def _initialize(self, x_0, P_0, N):
-        self.ensemble = np.zeros((self.N, self.dim_x))
-        e = np.random.multivariate_normal(self.mean, P_0, N)
-        for i in range(N):
-            self.ensemble[i] = x_0 + e[i]
-    
-        self.x = np.mean(self.ensemble, axis=0)
+        self.X = x_0 + multivariate_normal(np.zeros(self.dim_x), P_0, N) # (N, J)
+        self.x_mean = self.X.mean(axis=0)
     
   # 逐次推定を行う
     def forward_estimation(self):
         for y_obs in self.y:
             self._forecast()
             self._update(y_obs)
-            
+
     # 更新/解析
     def _update(self, y_obs):
-        N = self.N
+        X_f = self.X; x_f = self.x_mean; alpha = self.alpha; H = self.H; R = self.R; N = self.N; I = self.I
 
-        #dx dy
-        dX_f = self.ensemble - self.x
-        P_f = (dX_f.T@dX_f)/(N-1)
+        # dX, dYを計算
+        dX_f = X_f - x_f
+        dX_f = sqrt(alpha)*dX_f # inflation
+        dY = (H@dX_f.T).T
+        self.trP.append(sqrt(trace(dX_f.T@dX_f)/40))
         
         # Kalman gain 
-        K = P_f@H.T@np.linalg.inv(H@P_f@H.T + R)
+        K = dX_f.T@dY@inv(dY.T@dY + (N-1)*R)
+        # 平均を更新
+        x_a = x_f + K@(y_obs - H@x_f)
 
-        # K' TODO:
-        # 2通りの方法で実装が考えられる．
-        K_dash = P_f@H()
-
-        # アンサンブルで x(k) 更新
-        x_a = self.x + K@(y_obs - self.H(self.x))
-        dX_a = dX_f - K_dash@H.T@dX_f
-        self.ensemble = dX_a + x_a
+        # dXを変換, I - dY^t(dYdY^t + (N-1)R)dYの平方根をとる
+        # sqrtmの内部ではユニタリー変換により上三角化を行い平方根を計算する．(scipy.linalg.sqrtm: https://docs.scipy.org/doc/scipy/reference/generated/scipy.linalg.sqrtm.html)
+        T = sqrtm(I - dY@inv(dY.T@dY + (N-1)*R)@dY.T) # (N, N)
+        dX_a = (dX_f.T@T).T # (N, J)
+        self.X = x_a + dX_a
 
         # 更新した値のアンサンブル平均　x を保存
-        self.x_log.append(self.x)
+        self.x.append(self.X.mean(axis=0))
 
     # 予報/時間発展
-    def _forecast(self, log=False):
-    # アンサンブルで x(k) 予測
-        for i, s in enumerate(self.ensemble):
-            self.ensemble[i] = self.M(s, self.dt)
+    def _forecast(self):
+        # アンサンブルで x(k) 予測
+        for i, s in enumerate(self.X):
+            self.X[i] = self.M(s, self.dt)
 
-        self.x = np.mean(self.ensemble, axis=0)
-
-        if log:
-            self.x_log.append(self.x)
-    
-    # 追加の推定(観測値なし)
-    def additional_forecast(self, step):
-        for _ in range(step):
-            self._forecast(log=True)
+        self.x_mean = self.X.mean(axis=0)
