@@ -83,15 +83,16 @@ def estimate_error_with_params(true, results, params, param_name, plot=True, log
         filtering_error = error_series_kf(true, results[k], np.arange(T)+200).mean()
         filtering_errors.append(filtering_error)
     optimal_param, optimal_idx = search_optimal_param(params, filtering_errors)
+    optimal_error = filtering_errors[optimal_idx]
 
     if plot:
         fig, ax = plt.subplots()
         ax.plot(params, filtering_errors)
-        ax.scatter(optimal_param, filtering_errors[optimal_idx])
+        ax.scatter(optimal_param, optimal_error)
         ax.set_xlabel(param_name)
         ax.set_ylabel('rmse time mean')
         if log:
             plt.xscale('log')
         plt.title('rmse time mean by {}'.format(param_name))
-        fig.text(0, 0, 'optimal param: {}, optimal rmse: {}'.format(optimal_param, filtering_errors[optimal_idx]))
-    return optimal_param, optimal_idx
+        fig.text(0, 0, 'optimal param: {}, optimal rmse: {}'.format(optimal_param, optimal_error))
+    return optimal_param, optimal_idx, optimal_error
