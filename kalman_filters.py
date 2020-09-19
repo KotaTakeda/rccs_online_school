@@ -148,25 +148,25 @@ class EnsembleKalmanFilter:
         X_f = self.X; x_f = self.x_mean; H = self.H; N = self.N; R = self.R
 
         # P_f: 予報誤差共分散を計算
-        dX = X_f - x_f
-        P_f = (dX.T@dX) / (N-1)
+        dX = X_f - x_f # (N, dim_x)
+        P_f = (dX.T@dX) / (N-1) # (dim_x, dim_x)
         
         # localizationとinflation
         if self.localization:
             P_f = self.loc_mat*P_f
         P_f = self.alpha*P_f
-        self.trP.append(sqrt(trace(P_f)/40))
         
         # Kalman gain 
-        K = P_f@H.T@inv(H@P_f@H.T + R)
+        K = P_f@H.T@inv(H@P_f@H.T + R) # (dim_x, dim_y)
 
         # アンサンブルで x(k) 更新, ノイズを加える．
-        e = multivariate_normal(self.mean_y, R, N)
+        e = multivariate_normal(self.mean_y, R, N) # (N, dim_x)
         for i in range(N):
-            self.X[i] = X_f[i] + K@(y_obs + e[i] - H@X_f[i])
+            self.X[i] = X_f[i] + K@(y_obs + e[i] - H@X_f[i]) # dim_x
 
-        # 更新した値のアンサンブル平均　x を保存
+        # 記録: 更新した値のアンサンブル平均xを保存, 推定誤差共分散P_fのtraceを保存
         self.x.append(self.X.mean(axis=0))
+        self.trP.append(sqrt(trace(P_f)/40))
 
     # 予報/時間発展
     def _forecast(self):
@@ -243,24 +243,24 @@ class EnsembleSquareRootFilter:
         X_f = self.X; x_f = self.x_mean; alpha = self.alpha; H = self.H; R = self.R; N = self.N; I = self.I
 
         # dX, dYを計算
-        dX_f = X_f - x_f
+        dX_f = X_f - x_f # (N, dim_x)
         dX_f = sqrt(alpha)*dX_f # inflation
-        dY = (H@dX_f.T).T
-        self.trP.append(sqrt(trace(dX_f.T@dX_f)/40))
+        dY = (H@dX_f.T).T # (N, dim_y)
         
         # Kalman gain 
-        K = dX_f.T@dY@inv(dY.T@dY + (N-1)*R)
+        K = dX_f.T@dY@inv(dY.T@dY + (N-1)*R) # (dim_x, dim_y)
         # 平均を更新
-        x_a = x_f + K@(y_obs - H@x_f)
+        x_a = x_f + K@(y_obs - H@x_f) # dim_x
 
         # dXを変換, I - dY^t(dYdY^t + (N-1)R)dYの平方根をとる
         # sqrtmの内部ではユニタリー変換により上三角化を行い平方根を計算する．(scipy.linalg.sqrtm: https://docs.scipy.org/doc/scipy/reference/generated/scipy.linalg.sqrtm.html)
         T = sqrtm(I - dY@inv(dY.T@dY + (N-1)*R)@dY.T) # (N, N)
-        dX_a = (dX_f.T@T).T # (N, J)
-        self.X = x_a + dX_a
+        dX_a = (dX_f.T@T).T # (N, dim_x)
+        self.X = x_a + dX_a # (N, dim_x)
 
-        # 更新した値のアンサンブル平均　x を保存
+        # 記録: 更新した値のアンサンブル平均xを保存, 推定誤差共分散P_fのtraceを保存
         self.x.append(self.X.mean(axis=0))
+        self.trP.append(sqrt(trace(dX_f.T@dX_f)/40))
 
     # 予報/時間発展
     def _forecast(self):
