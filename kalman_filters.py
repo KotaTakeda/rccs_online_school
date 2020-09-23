@@ -1,5 +1,5 @@
 import numpy as np
-from numpy import sqrt, trace, zeros, identity, exp
+from numpy import sqrt, trace, zeros, identity, exp, random
 from numpy.random import multivariate_normal, choice
 from numpy.linalg import inv
 import scipy
@@ -134,6 +134,7 @@ class EnsembleKalmanFilter:
 
     #　初期状態
     def _initialize(self, x_0, P_0, N):
+        random.seed(0)
         self.X = x_0 + multivariate_normal(zeros(self.dim_x), P_0, N)
         self.x_mean = self.X.mean(axis=0)
     
@@ -149,7 +150,7 @@ class EnsembleKalmanFilter:
 
         # P_f: 予報誤差共分散を計算
         dX = X_f - x_f # (N, dim_x)
-        P_f = (dX.T@dX) / (N-1) # (dim_x, dim_x)
+        P_f = (dX.T@dX) / (N-1) # (dim_x, dim_x) dim_xが大きい場合はP_fをメモリ上に持たない方が良い
         
         # localizationとinflation
         if self.localization:
@@ -229,6 +230,7 @@ class EnsembleSquareRootFilter:
 
   #　初期状態
     def _initialize(self, x_0, P_0, N):
+        random.seed(0)
         self.X = x_0 + multivariate_normal(np.zeros(self.dim_x), P_0, N) # (N, J)
         self.x_mean = self.X.mean(axis=0)
     
