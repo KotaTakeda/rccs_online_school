@@ -101,20 +101,20 @@ Q: ndarray(dim_x, dim_x)
 R: ndarray(dim_y, dim_y)
   観測の誤差共分散行列
 
-N: アンサンブルメンバーの数
+m: アンサンブルメンバーの数
 
 x: ndarray(dim_x)
 
 """
 class EnsembleKalmanFilter:
     # TODO: P_fを陽に計算しない実装にする．
-    def __init__(self, M, H, Q, R, y, x_0, P_0, N=10, dt=0.05, alpha=1, localization=True, sigma=3):
+    def __init__(self, M, H, Q, R, y, x_0, P_0, m=10, dt=0.05, alpha=1, localization=True, sigma=3):
         self.M = M
         self.H = H
         self.Q = Q
         self.R = R
         self.y = y
-        self.N = N # アンサンブルメンバー数
+        self.m = m # アンサンブルメンバー数
         self.dt = dt
         
         # 実装で技術的に必要
@@ -132,12 +132,12 @@ class EnsembleKalmanFilter:
         self.x = [] # 記録用
         self.trP = []
 
-        self._initialize(x_0, P_0, N)
+        self._initialize(x_0, P_0, m)
 
     #　初期状態
-    def _initialize(self, x_0, P_0, N):
+    def _initialize(self, x_0, P_0, m):
         random.seed(0)
-        self.X = x_0 + multivariate_normal(zeros(self.dim_x), P_0, N)
+        self.X = x_0 + multivariate_normal(zeros(self.dim_x), P_0, m)
         self.x_mean = self.X.mean(axis=0)
     
     # 逐次推定を行う
@@ -148,11 +148,11 @@ class EnsembleKalmanFilter:
 
     # 更新/解析
     def _update(self, y_obs):
-        X_f = self.X; x_f = self.x_mean; H = self.H; N = self.N; R = self.R
+        X_f = self.X; x_f = self.x_mean; H = self.H; m = self.m; R = self.R
 
         # P_f: 予報誤差共分散を計算
-        dX = X_f - x_f # (N, dim_x)
-        P_f = (dX.T@dX) / (N-1) # (dim_x, dim_x) dim_xが大きい場合はP_fをメモリ上に持たない方が良い
+        dX = X_f - x_f # (m, dim_x)
+        P_f = (dX.T@dX) / (m-1) # (dim_x, dim_x) dim_xが大きい場合はP_fをメモリ上に持たない方が良い
         
         # localizationとinflation
         if self.localization:
@@ -164,8 +164,8 @@ class EnsembleKalmanFilter:
         # ここで遠くの観測の影響を調節することができる．
 
         # アンサンブルで x(k) 更新, ノイズを加える．
-        e = multivariate_normal(self.mean_y, R, N) # (N, dim_x)
-        for i in range(N):
+        e = multivariate_normal(self.mean_y, R, m) # (m, dim_x)
+        for i in range(m):
             self.X[i] = X_f[i] + K@(y_obs + e[i] - H@X_f[i]) # dim_x
 
         # 記録: 更新した値のアンサンブル平均xを保存, 推定誤差共分散P_fのtraceを保存
@@ -204,24 +204,24 @@ R: ndarray(dim_y, dim_y)
   観測の誤差共分散行列
 x_0: 状態変数の初期値
 P_0: 誤差共分散の初期値
-N: アンサンブルメンバーの数
+m: アンサンブルメンバーの数
 dt: 同化時間step幅
 alpha: inflation factor
 localization: localizationの設定
 """
 class EnsembleSquareRootFilter:
-    def __init__(self, M, H, Q, R, y, x_0, P_0, N=40, dt=0.05, alpha=1):
+    def __init__(self, M, H, Q, R, y, x_0, P_0, m=40, dt=0.05, alpha=1):
         self.M = M
         self.H = H
         self.Q = Q
         self.R = R
         self.y = y
-        self.N = N # アンサンブルメンバー数
+        self.m = m # アンサンブルメンバー数
         self.dt = dt
         
         # 実装で技術的に必要
         self.dim_x = Q.shape[0]
-        self.I = identity(N)
+        self.I = identity(m)
         
         self.alpha = alpha # inflation用の定数
 
@@ -229,12 +229,12 @@ class EnsembleSquareRootFilter:
         self.x = [] # 記録用
         self.trP = []
 
-        self._initialize(x_0, P_0, N)
+        self._initialize(x_0, P_0, m)
 
   #　初期状態
-    def _initialize(self, x_0, P_0, N):
+    def _initialize(self, x_0, P_0, m):
         random.seed(0)
-        self.X = x_0 + multivariate_normal(np.zeros(self.dim_x), P_0, N) # (N, J)
+        self.X = x_0 + multivariate_normal(np.zeros(self.dim_x), P_0, m) # (m, J)
         self.x_mean = self.X.mean(axis=0)
     
   # 逐次推定を行う
@@ -245,23 +245,23 @@ class EnsembleSquareRootFilter:
 
     # 更新/解析
     def _update(self, y_obs):
-        X_f = self.X; x_f = self.x_mean; alpha = self.alpha; H = self.H; R = self.R; N = self.N; I = self.I
+        X_f = self.X; x_f = self.x_mean; alpha = self.alpha; H = self.H; R = self.R; m = self.m; I = self.I
 
         # dX, dYを計算
-        dX_f = X_f - x_f # (N, dim_x)
+        dX_f = X_f - x_f # (m, dim_x)
         dX_f = sqrt(alpha)*dX_f # inflation
-        dY = (H@dX_f.T).T # (N, dim_y)
+        dY = (H@dX_f.T).T # (m, dim_y)
         
         # Kalman gain 
-        K = dX_f.T@dY@inv(dY.T@dY + (N-1)*R) # (dim_x, dim_y)
+        K = dX_f.T@dY@inv(dY.T@dY + (m-1)*R) # (dim_x, dim_y)
         # 平均を更新
         x_a = x_f + K@(y_obs - H@x_f) # dim_x
 
-        # dXを変換, I - dY^t(dYdY^t + (N-1)R)dYの平方根をとる
+        # dXを変換, I - dY^t(dYdY^t + (m-1)R)dYの平方根をとる
         # sqrtmの内部ではユニタリー変換により上三角化を行い平方根を計算する．(scipy.linalg.sqrtm: https://docs.scipy.org/doc/scipy/reference/generated/scipy.linalg.sqrtm.html)
-        T = sqrtm(I - dY@inv(dY.T@dY + (N-1)*R)@dY.T) # (N, N)
-        dX_a = (dX_f.T@T).T # (N, dim_x)
-        self.X = x_a + dX_a # (N, dim_x)
+        T = sqrtm(I - dY@inv(dY.T@dY + (m-1)*R)@dY.T) # (m, m)
+        dX_a = (dX_f.T@T).T # (m, dim_x)
+        self.X = x_a + dX_a # (m, dim_x)
 
         # 記録: 更新した値のアンサンブル平均xを保存, 推定誤差共分散P_fのtraceを保存
         self.x.append(self.X.mean(axis=0))
