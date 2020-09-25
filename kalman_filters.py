@@ -107,7 +107,8 @@ x: ndarray(dim_x)
 
 """
 class EnsembleKalmanFilter:
-    def __init__(self, M, H, Q, R, y, x_0, P_0, N=10, dt=0.05, alpha=1, localization=True):
+    # TODO: P_fを陽に計算しない実装にする．
+    def __init__(self, M, H, Q, R, y, x_0, P_0, N=10, dt=0.05, alpha=1, localization=True, sigma=3):
         self.M = M
         self.H = H
         self.Q = Q
@@ -122,6 +123,7 @@ class EnsembleKalmanFilter:
         self.mean_y = zeros(self.dim_y)
         
         self.alpha = alpha # inflation用の定数
+        self.sigma = sigma
         self.localization = localization
         if localization:
             self.loc_mat = self.make_loc_mat() # localization用の行列
@@ -159,6 +161,7 @@ class EnsembleKalmanFilter:
         
         # Kalman gain 
         K = P_f@H.T@inv(H@P_f@H.T + R) # (dim_x, dim_y)
+        # ここで遠くの観測の影響を調節することができる．
 
         # アンサンブルで x(k) 更新, ノイズを加える．
         e = multivariate_normal(self.mean_y, R, N) # (N, dim_x)
@@ -182,7 +185,7 @@ class EnsembleKalmanFilter:
         mat = zeros((J,J))
         for i in range(J):
             for j in range (J):
-                mat[i, j] = exp(-0.5*(i-j)**2)
+                mat[i, j] = exp(-min([(i-j)**2, (i+J-j)**2])/self.sigma)
         return mat
 
 
