@@ -38,6 +38,13 @@
 - 内容： Local Transform Ensemble Kalman Filterの実装とLorenz96モデルに対するデータ同化
 
 
-[募集詳細](http://www.data-assimilation.riken.jp/jp/events/riken_da_tr_2020/index.html)
+# 参考
+- Lorenz and Emanuel, 1998: Optimal sites for supplementary weather observations:Simulation with a small model. J. Atmos. Sci., 55, 399−414.
+- [Lorenz96モデルのデータ同化:準備編](https://qiita.com/litharge3141/items/41b8dd3104413529407f) - 2020/08/17
+- [Lorenz96モデルのデータ同化:Extended Kalman Filter](https://qiita.com/litharge3141/items/7c1c879240d6c9d46166) - 2020/09/03
+- [scipy.linalg.sqrtm](https://docs.scipy.org/doc/scipy/reference/generated/scipy.linalg.sqrtm.html) - 2020/09/18
+- [三好](https://www.metsoc.jp/tenki/pdf/2005/2005_02_0093.pdf) - 2020/09/15
+- [adaptive](http://www.data-assimilation.riken.jp/jp/events/ithes_da_2016fall/slides/160912_iTHES_Kotsuki.pdf) - 2020/09/26
+- [募集詳細](http://www.data-assimilation.riken.jp/jp/events/riken_da_tr_2020/index.html)
 
  
