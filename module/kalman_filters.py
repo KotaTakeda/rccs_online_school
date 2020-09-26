@@ -250,6 +250,9 @@ class EnsembleSquareRootFilter:
         # dX, dYを計算
         dX_f = X_f - x_f # (m, dim_x)
         dX_f = sqrt(alpha)*dX_f # inflation
+        # adaptive inflationこれを使う場合は上記のinflationはしない
+        # delta = trace((y_obs - (H@dX_f.T).T).T@(y_obs - (H@dX_f.T).T) - R)/trace(H@dX_f.T@dX_f@H.T)
+        # dX_f = delta*dX_f
         dY = (H@dX_f.T).T # (m, dim_y)
         
         # Kalman gain 
