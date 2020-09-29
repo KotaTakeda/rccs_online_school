@@ -322,7 +322,7 @@ Implementation:
         - local functionとしてgaspari cohn function
 """
 class LocalEnsembleTransformKalmanFilter:
-    def __init__(self, M, H, Q, R, y, x_0, P_0, m=10, dt=0.05, alpha=1, c=3, localization='gaspari-cohn'):
+    def __init__(self, M, H, Q, R, y, x_0, P_0, m=10, dt=0.05, alpha=1, c=3, localization='gaspari-cohn', addaptive=False):
         self.M = M
         self.H = H
         self.Q = Q
@@ -336,6 +336,7 @@ class LocalEnsembleTransformKalmanFilter:
         self.I = identity(m)
         
         self.alpha = alpha # inflation用の定数
+        self.addaptive = addaptive
         self.c = c
         self.localization = localization
 
@@ -361,6 +362,12 @@ class LocalEnsembleTransformKalmanFilter:
     # 更新/解析
     def _update(self, y_obs):
         x_f = self.x_mean; X_f = self.X; I = self.I; H = self.H; R = self.R; m = self.m; alpha = self.alpha; N = self.dim_x
+
+        dX_f = X_f - x_f # (m, N)
+        dY = (H@dX_f.T).T # (m, dim_y)
+        if self.addaptive: # 不完全
+            alpha = (trace((y_obs - dY).T@(y_obs - dY) - (m-1)*R)/trace(dY.T@dY))**2
+            print(alpha)
 
         # x_iを推定．
         for i in range(self.dim_x):
