@@ -4,8 +4,18 @@ from numpy.random import multivariate_normal, choice
 from numpy.linalg import inv
 import scipy
 from scipy.linalg import sqrtm
-import pdb
-            
+
+# TODO: import改良
+import sys
+sys.path.append('./module')
+from localization import calc_dist, polynomial, gaspari_cohn
+
+# ============================
+# Extended Kalman Filter
+# ============================
+"""
+TODO: 説明
+"""       
 class ExtendedKalmanFilter:
     def __init__(self, M, H, Q, R, y, x_0, P_0, dt=0.05, delta=1e-3, var3d=False, alpha=1, cut_obs_size=0):
         self.M = M
@@ -82,10 +92,10 @@ class ExtendedKalmanFilter:
         for _ in range(step):
             self._forecast(log=True)
 
-# TODO: kalman_filters.pyに決定版を保存
-# ========================
-# ========================
+
+# ===========================
 # Ensemble Kalman Filter PO法
+# ===========================
 """
 Parameters
 
@@ -277,3 +287,117 @@ class EnsembleSquareRootFilter:
             self.X[i] = self.M(s, self.dt)
 
         self.x_mean = self.X.mean(axis=0)
+
+
+# ==========================================
+# LocalEnsembleTransformKalmanFilter(LETKF)
+# ==========================================
+# TODO: 並列化
+"""
+Parameters
+M: callable(x, dt)
+  状態遷移関数
+H: ndarray(dim_y, dim_x)
+  観測行列  
+Q: ndarray(dim_x, dim_x)
+  モデルの誤差共分散行列 
+R: ndarray(dim_y, dim_y)
+  観測の誤差共分散行列
+x_0: 状態変数の初期値
+P_0: 誤差共分散の初期値
+m: アンサンブルメンバーの数
+dt: 同化時間step幅
+alpha: inflation factor
+localization: localizationの設定
+x: ndarray(dim_x)
+
+Implementation:
+    iteration:
+        - 各観測で状態変数の数N=40回
+        - 各i(in 1~40)で
+            - x_iを推定．
+            - x_iに近い観測を用いる．-> localization
+    localization:
+        - R-locで実装．R-inverseにlocal functionをかける．
+        - local functionとしてgaspari cohn function
+"""
+class LocalEnsembleTransformKalmanFilter:
+    def __init__(self, M, H, Q, R, y, x_0, P_0, m=10, dt=0.05, alpha=1, c=3, localization='gaspari-cohn'):
+        self.M = M
+        self.H = H
+        self.Q = Q
+        self.R = R
+        self.y = y
+        self.m = m # アンサンブルメンバー数
+        self.dt = dt
+        
+        # 実装で技術的に必要
+        self.dim_x = Q.shape[0]
+        self.I = identity(m)
+        
+        self.alpha = alpha # inflation用の定数
+        self.c = c
+        self.localization = localization
+
+        # filtering実行用
+        self.x = [] # 記録用
+        self.x_f = []
+        self.trP = []
+
+        self._initialize(x_0, P_0, m)
+
+  #　初期状態
+    def _initialize(self, x_0, P_0, m):
+        random.seed(0)
+        self.X = x_0 + multivariate_normal(np.zeros(self.dim_x), P_0, m) # (m, J)
+        self.x_mean = self.X.mean(axis=0)
+    
+  # 逐次推定を行う
+    def forward_estimation(self):
+        for y_obs in self.y:
+            self._forecast()
+            self._update(y_obs)
+
+    # 更新/解析
+    def _update(self, y_obs):
+        x_f = self.x_mean; X_f = self.X; I = self.I; H = self.H; R = self.R; m = self.m; alpha = self.alpha; N = self.dim_x
+
+        # x_iを推定．
+        for i in range(self.dim_x):
+            dX_f = X_f - x_f # (m, N)
+            dY = (H@dX_f.T).T # (m, dim_y)
+
+            C = dY@(self._rho(i)*inv(R)) # localization: invRの各i行にrho_iをかける．(m, dim_y)
+
+            P_at = inv(((m-1)/alpha)*self.I + C@dY.T) # アンサンブル空間でのP_a．(m, m)
+            T = (P_at@C@(y_obs - H@x_f) + self.calc_sqrtm((m-1)*P_at)).T # 注:Pythonの使用上第１項(mean update)が行ベクトルとして足されているので転置しておく．(m, m)
+            
+            self.X[:, i] = x_f[i] + (dX_f.T@T).T[:, i] # (m, dim_x)
+
+        # 記録: 更新した値のアンサンブル平均xを保存, 推定誤差共分散P_fのtraceを保存
+        self.x.append(self.X.mean(axis=0))
+        self.trP.append(sqrt(trace(dX_f.T@dX_f)/40))
+
+
+    # 予報/時間発展
+    def _forecast(self):
+        # アンサンブルで x(k) 予測
+        for i, s in enumerate(self.X):
+            self.X[i] = self.M(s, self.dt)
+
+        self.x_mean = self.X.mean(axis=0)
+        self.x_f.append(self.x_mean)
+     
+    # localization用の関数
+    def _rho(self, i):
+        if self.localization=='gaussian':
+            return np.array([exp(-calc_dist(i, j)**2/(2*(self.c*(0.3**(1/2)))**2)) for j in range(self.dim_x)]) # gaussian ver
+        else:
+            return np.array([gaspari_cohn(calc_dist(i, j), self.c) for j in range(self.dim_x)])
+
+    def calc_sqrtm(self, mat):
+      return self._symmetric(sqrtm(self._symmetric(mat)))
+    
+    def _symmetric(self, S):
+        return 0.5*(S + S.T)
+    
