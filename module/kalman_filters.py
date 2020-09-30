@@ -403,7 +403,7 @@ class LocalEnsembleTransformKalmanFilter:
             return np.array([gaspari_cohn(calc_dist(i, j), self.c) for j in range(self.dim_x)])
 
     def calc_sqrtm(self, mat):
-      return self._symmetric(sqrtm(self._symmetric(mat)))
+        return self._symmetric(sqrtm(self._symmetric(mat)))
     
     def _symmetric(self, S):
         return 0.5*(S + S.T)
