@@ -371,9 +371,6 @@ class LocalEnsembleTransformKalmanFilter:
 
         # x_iを推定．
         for i in range(self.dim_x):
-            dX_f = X_f - x_f # (m, N)
-            dY = (H@dX_f.T).T # (m, dim_y)
-
             C = dY@(self._rho(i)*inv(R)) # localization: invRの各i行にrho_iをかける．(m, dim_y)
 
             P_at = inv(((m-1)/alpha)*self.I + C@dY.T) # アンサンブル空間でのP_a．(m, m)
