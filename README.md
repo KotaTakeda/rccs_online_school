@@ -45,6 +45,6 @@
 - [scipy.linalg.sqrtm](https://docs.scipy.org/doc/scipy/reference/generated/scipy.linalg.sqrtm.html) - 2020/09/18
 - [三好](https://www.metsoc.jp/tenki/pdf/2005/2005_02_0093.pdf) - 2020/09/15
 - [adaptive](http://www.data-assimilation.riken.jp/jp/events/ithes_da_2016fall/slides/160912_iTHES_Kotsuki.pdf) - 2020/09/26
-- [募集詳細](http://www.data-assimilation.riken.jp/jp/events/riken_da_tr_2020/index.html)
+- [イベント詳細](http://www.data-assimilation.riken.jp/jp/events/riken_da_tr_2020/index.html)
 
  
