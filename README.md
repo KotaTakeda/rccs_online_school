@@ -2,6 +2,7 @@
 理研データ同化オンラインスクール (基礎編)は理研のデータ同化研究チームが主催となるオンラインスクールです．データ同化についての実践的な知識が身につきます．
 
 # 内容
+- 力学系とデータ同化の概念について
 - Lorenz96モデルに対するデータ同化システムの構築．
 - 受講者には理解の確認のための課題が課せられています．
 
@@ -45,6 +46,6 @@
 - [scipy.linalg.sqrtm](https://docs.scipy.org/doc/scipy/reference/generated/scipy.linalg.sqrtm.html) - 2020/09/18
 - [三好](https://www.metsoc.jp/tenki/pdf/2005/2005_02_0093.pdf) - 2020/09/15
 - [adaptive](http://www.data-assimilation.riken.jp/jp/events/ithes_da_2016fall/slides/160912_iTHES_Kotsuki.pdf) - 2020/09/26
-- [募集詳細](http://www.data-assimilation.riken.jp/jp/events/riken_da_tr_2020/index.html)
+- [イベント詳細](http://www.data-assimilation.riken.jp/jp/events/riken_da_tr_2020/index.html)
 
  
