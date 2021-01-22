@@ -40,6 +40,7 @@
 
 
 # 参考
+- [Kalman Filterまとめ](https://kotatakeda.github.io/math/2020/10/07/kalman-filter.html)
 - Lorenz and Emanuel, 1998: Optimal sites for supplementary weather observations:Simulation with a small model. J. Atmos. Sci., 55, 399−414.
 - [Lorenz96モデルのデータ同化:準備編](https://qiita.com/litharge3141/items/41b8dd3104413529407f) - 2020/08/17
 - [Lorenz96モデルのデータ同化:Extended Kalman Filter](https://qiita.com/litharge3141/items/7c1c879240d6c9d46166) - 2020/09/03
