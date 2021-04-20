@@ -3,7 +3,7 @@
 import numpy as np
 import matplotlib.pyplot as plt
 
-# Runge-Kuta
+# 4次Runge-Kuta
 def rk4(t, y, dt, f):
     k1 = f(t, y)
     k2 = f(t+dt/2, y + k1*dt/2)
