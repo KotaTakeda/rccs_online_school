@@ -54,4 +54,3 @@
 - [adaptive](http://www.data-assimilation.riken.jp/jp/events/ithes_da_2016fall/slides/160912_iTHES_Kotsuki.pdf) - 2020/09/26
 - [イベント詳細](http://www.data-assimilation.riken.jp/jp/events/riken_da_tr_2020/index.html)
 
- 
